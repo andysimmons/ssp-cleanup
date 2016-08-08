@@ -1,6 +1,6 @@
 ﻿<#	
 .NOTES
-	Name:    Remove-CitrixShortcuts.ps1
+	Name:    Remove-CitrixDesktopShortcuts.ps1
 	Author:  Andy Simmons
 	Version: 1.0
 	URL:     https://github.com/andysimmons/ssp-cleanup
@@ -21,13 +21,13 @@
 	SSP creates additional copies of them.
 
 .EXAMPLE
-	Remove-CitrixShortcuts.ps1
+	Remove-CitrixDesktopShortcuts.ps1
 
 	Deletes any .lnk files in the user's desktop directory that were generated
 	by the Citrix SSP plugin.
 
 .EXAMPLE
-	Remove-CitrixShortcuts.ps1 -WhatIf
+	Remove-CitrixDesktopShortcuts.ps1 -WhatIf
 
 	Shows which shortcut files would be deleted, but doesn't actually remove them.
 #>
