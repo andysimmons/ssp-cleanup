@@ -19,6 +19,17 @@
 
 	This script can be invoked at logon to remove the leftover shortcuts before
 	SSP creates additional copies of them.
+
+.EXAMPLE
+	Remove-CitrixShortcuts.ps1
+
+	Deletes any .lnk files in the user's desktop directory that were generated
+	by the Citrix SSP plugin.
+
+.EXAMPLE
+	Remove-CitrixShortcuts.ps1 -WhatIf
+
+	Shows which shortcut files would be deleted, but doesn't actually remove them.
 #>
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
 param()
