@@ -10,11 +10,11 @@ This script can be invoked at logon to remove the leftover shortcuts before the 
 ##Examples
 ###Example:
 ```PowerShell
-> Remove-CitrixDesktopShortcuts.ps1
+PS> Remove-CitrixDesktopShortcuts.ps1
 ```
 Deletes desktop shortcut files created by Receiver.
 ###Example:
 ```PowerShell
-> Remove-CitrixDesktopShortcuts.ps1 -WhatIf
+PS> Remove-CitrixDesktopShortcuts.ps1 -WhatIf
 ```
 List the shortcuts that would be deleted, but doesn't delete them.
