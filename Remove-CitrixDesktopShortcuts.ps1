@@ -1,4 +1,4 @@
-﻿<#	
+<#	
 .NOTES
 	Name:    Remove-CitrixDesktopShortcuts.ps1
 	Author:  Andy Simmons
@@ -34,35 +34,35 @@
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
 param()
 
-[regex]$reStupidTargetPattern = 'Citrix.*ICA.*SelfServicePlugin'
-[IO.DirectoryInfo]$dirDesktop = [Environment]::GetFolderPath('DesktopDirectory')
+[regex]$stupidTargetPattern   = 'Citrix.*ICA.*SelfServicePlugin'
+[IO.DirectoryInfo]$desktopDir = [Environment]::GetFolderPath('DesktopDirectory')
 
-if ($dirDesktop.Exists)
+if ($desktopDir.Exists)
 {
 	# Populate an array with any .lnk files in the current user's desktop directory.
-	try   { [IO.FileInfo[]]$arrShortcut = Get-ChildItem -Path $dirDesktop -Filter '*.lnk' -ErrorAction Stop }
+	try   { [IO.FileInfo[]]$lnkFiles = Get-ChildItem -Path $desktopDir -Filter '*.lnk' -ErrorAction Stop }
 	catch { throw $_ }
 	
 	# If we have anything in our array, instantiate a WSH shell. There's no .Net class to handle
 	# shortcuts natively, so we need WSH to "create" shortcuts (COM objects) from the files.
-	if ($arrShortcut) { $wshShell = New-Object -ComObject WScript.Shell }
-	else              { exit }
+	if ($lnkFiles) { $wshShell = New-Object -ComObject WScript.Shell }
+	else           { exit }
 
-	foreach ($fileShortcut in $arrShortcut)
+	foreach ($lnkFile in $lnkFiles)
 	{
-		try   { $comShortcut = $wshShell.CreateShortcut($fileShortcut.FullName) }
+		try   { $shortcut = $wshShell.CreateShortcut($lnkFile.FullName) }
 		catch
 		{
 			Write-Error -Message $_.Exception.Message -Category $_.CategoryInfo
-			$comShortcut = $null
+			$shortcut = $null
 			continue
 		}
 		
-		if ($comShortcut.TargetPath -match $reStupidTargetPattern)
+		if ($shortcut.TargetPath -match $stupidTargetPattern)
 		{
-			if ($PSCmdlet.ShouldProcess($fileShortcut, 'Delete'))
+			if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete'))
 			{
-				$fileShortcut.Delete()	
+				$lnkFile.Delete()	
 			}
 		}
 	}
