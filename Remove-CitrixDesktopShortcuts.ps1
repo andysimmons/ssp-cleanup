@@ -47,7 +47,12 @@ param (
     $ShortcutPath = [Environment]::GetFolderPath('DesktopDirectory')
 )
 
-if ($ShortcutPath.Exists)
+if ( -not $ShortcutPath.Exists)
+{
+    Write-Error -Message "No such directory: $ShortcutPath" -Category ObjectNotFound
+}
+
+else
 {
     Write-Verbose "Enumerating shortcuts in '${ShortcutPath}'..."
     [IO.FileInfo[]]$lnkFiles = Get-ChildItem -Path $ShortcutPath -Filter '*.lnk' -ErrorAction Stop
@@ -56,39 +61,42 @@ if ($ShortcutPath.Exists)
     {
         Write-Verbose "Found $($lnkFiles.Length) *.lnk files. Instantiating WSH shell to inspect..."
         $wshShell = New-Object -ComObject WScript.Shell 
+
+        foreach ($lnkFile in $lnkFiles)
+        {
+            try 
+            {
+                # There's no native .Net shortcut handler, so we'll "create" a
+                # shortcut (COM object) from the .lnk file to see what's up. 
+                $shortcut = $wshShell.CreateShortcut($lnkFile.FullName) 
+            }
+
+            catch
+            {
+                Write-Error -Message $_.Exception.Message -Category $_.CategoryInfo
+                $shortcut = $null
+                continue
+            }
+
+
+            if ($shortcut.TargetPath -match $StupidTargetPattern)
+            {
+                Write-Warning "'$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
+                if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete'))
+                {
+                    $lnkFile.Delete()	
+                }
+            }
+
+            else
+            {
+                Write-Verbose "'$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
+            }
+        }
     }
+
     else 
     {
         Write-Verbose "No *.lnk files found. Nothing to do."
-        exit 
-    }
-
-    foreach ($lnkFile in $lnkFiles)
-    {
-        try 
-        {
-            # There's no native .Net shortcut handler, so we'll "create" a
-            # shortcut (COM object) from the .lnk file to see what's up. 
-            $shortcut = $wshShell.CreateShortcut($lnkFile.FullName) 
-        }
-        catch
-        {
-            Write-Error -Message $_.Exception.Message -Category $_.CategoryInfo
-            $shortcut = $null
-            continue
-        }
-        
-        if ($shortcut.TargetPath -match $StupidTargetPattern)
-        {
-            Write-Warning "'$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
-            if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete'))
-            {
-                $lnkFile.Delete()	
-            }
-        }
-        else
-        {
-            Write-Verbose "'$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
-        }
     }
 }
