@@ -47,56 +47,40 @@ param (
     $ShortcutPath = [Environment]::GetFolderPath('DesktopDirectory')
 )
 
-if ( -not $ShortcutPath.Exists)
+if (-not $ShortcutPath.Exists)
 {
-    Write-Error -Message "No such directory: $ShortcutPath" -Category ObjectNotFound
+    Write-Error -Message "No such directory: '${ShortcutPath}'" -Category ObjectNotFound
+    exit 1
 }
 
-else
+[IO.FileInfo[]]$lnkFiles = Get-ChildItem -Path $ShortcutPath -Filter '*.lnk' -ErrorAction Stop
+Write-Verbose "Found $($lnkFiles.Length) '.lnk' files in '${ShortcutPath}'"
+
+if (-not $lnkFiles) { exit }
+
+# Spawn a WSH shell (.Net doesn't have a native shortcut handler).
+$wshShell = New-Object -ComObject WScript.Shell 
+
+foreach ($lnkFile in $lnkFiles)
 {
-    Write-Verbose "Enumerating shortcuts in '${ShortcutPath}'..."
-    [IO.FileInfo[]]$lnkFiles = Get-ChildItem -Path $ShortcutPath -Filter '*.lnk' -ErrorAction Stop
-    
-    if ($lnkFiles) 
+    try 
     {
-        Write-Verbose "Found $($lnkFiles.Length) *.lnk files. Instantiating WSH shell to inspect..."
-        $wshShell = New-Object -ComObject WScript.Shell 
-
-        foreach ($lnkFile in $lnkFiles)
-        {
-            try 
-            {
-                # There's no native .Net shortcut handler, so we'll "create" a
-                # shortcut (COM object) from the .lnk file to see what's up. 
-                $shortcut = $wshShell.CreateShortcut($lnkFile.FullName) 
-            }
-
-            catch
-            {
-                Write-Error -Message $_.Exception.Message -Category $_.CategoryInfo
-                $shortcut = $null
-                continue
-            }
-
-
-            if ($shortcut.TargetPath -match $StupidTargetPattern)
-            {
-                Write-Warning "'$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
-                if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete'))
-                {
-                    $lnkFile.Delete()	
-                }
-            }
-
-            else
-            {
-                Write-Verbose "'$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
-            }
-        }
+        # Create a shortcut (COM object) from each file. 
+        $shortcut = $wshShell.CreateShortcut($lnkFile.FullName) 
+    }
+    catch
+    {
+        Write-Error -Message $_.Exception.Message -Category $_.CategoryInfo
+        $shortcut = $null
+        continue
     }
 
-    else 
+    if ($shortcut.TargetPath -match $StupidTargetPattern)
     {
-        Write-Verbose "No *.lnk files found. Nothing to do."
+        Write-Verbose "SSP Shortcut: '$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
+        if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete'))
+        {
+            $lnkFile.Delete()	
+        }
     }
 }
