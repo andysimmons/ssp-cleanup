@@ -49,19 +49,26 @@ param (
 
 if ($ShortcutPath.Exists)
 {
-    # Populate an array with any .lnk files in the current user's desktop directory.
+    Write-Verbose "Enumerating shortcuts in '${ShortcutPath}'..."
     [IO.FileInfo[]]$lnkFiles = Get-ChildItem -Path $ShortcutPath -Filter '*.lnk' -ErrorAction Stop
     
-    # There's currently no .Net class to handle shortcuts natively, so if we found
-    # any *.lnk files, we need WSH to crack them open.
-    if ($lnkFiles) { $wshShell = New-Object -ComObject WScript.Shell }
-    else           { exit }
+    if ($lnkFiles) 
+    {
+        Write-Verbose "Found $($lnkFiles.Length) *.lnk files. Instantiating WSH shell to inspect..."
+        $wshShell = New-Object -ComObject WScript.Shell 
+    }
+    else 
+    {
+        Write-Verbose "No *.lnk files found. Nothing to do."
+        exit 
+    }
 
     foreach ($lnkFile in $lnkFiles)
     {
-        # Create a "shortcut" (a COM object) from the file info
         try 
-        { 
+        {
+            # There's no native .Net shortcut handler, so we'll "create" a
+            # shortcut (COM object) from the .lnk file to see what's up. 
             $shortcut = $wshShell.CreateShortcut($lnkFile.FullName) 
         }
         catch
@@ -71,13 +78,17 @@ if ($ShortcutPath.Exists)
             continue
         }
         
-        # If it came from SSP, nuke it.
         if ($shortcut.TargetPath -match $StupidTargetPattern)
         {
+            Write-Warning "'$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
             if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete'))
             {
                 $lnkFile.Delete()	
             }
+        }
+        else
+        {
+            Write-Verbose "'$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
         }
     }
 }
