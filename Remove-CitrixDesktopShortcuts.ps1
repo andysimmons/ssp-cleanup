@@ -1,8 +1,8 @@
-<#	
+<#
 .NOTES
     Name:    Remove-CitrixDesktopShortcuts.ps1
     Author:  Andy Simmons
-    Version: 1.0.1
+    Version: 1.0.2
     URL:     https://github.com/andysimmons/ssp-cleanup
     
 .SYNOPSIS
@@ -26,6 +26,9 @@
 
 .PARAMETER ShortcutPath
     Directory to be searched (non-recursively) and purged of SSP shortcuts.
+
+.PARAMETER LogFile
+    Log file location.
     
 .EXAMPLE
     Remove-CitrixDesktopShortcuts.ps1
@@ -39,13 +42,40 @@
     Shows which shortcut files would be deleted, but doesn't actually remove them.
 #>
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
-param (
+param 
+(
     [regex]
     $StupidTargetPattern = 'Citrix.*ICA.*SelfServicePlugin',
 
     [IO.DirectoryInfo]
-    $ShortcutPath = [Environment]::GetFolderPath('DesktopDirectory')
+    $ShortcutPath = [Environment]::GetFolderPath('DesktopDirectory'),
+
+    [IO.FileInfo]
+    $LogFile = 'C:\Logs\CitrixSSPCleanup.log'
 )
+
+# This is a login script, we'll be explicit with modules to keep it snappy.
+$PSModuleAutoLoadingPreference = 'None'
+
+$scriptModules = @(
+    'Microsoft.PowerShell.Host',
+    'Microsoft.PowerShell.Management',
+    'Microsoft.PowerShell.Security',
+    'Microsoft.PowerShell.Utility'
+)
+$scriptModules | Import-Module
+
+# Try the cool/newer Start-Transcript if we can
+try   { Start-Transcript -IncludeInvocationHeader $LogFile }
+catch 
+{ 
+    try   { Start-Transcript $LogFile }
+    catch 
+    { 
+        Write-Warning "Couldn't write to log file '${LogFile}'. Continuing without logging."
+        Write-Warning $_.Exception.Message
+    }
+}
 
 if (-not $ShortcutPath.Exists)
 {
@@ -80,7 +110,16 @@ foreach ($lnkFile in $lnkFiles)
         Write-Verbose "SSP Shortcut: '$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
         if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete'))
         {
-            $lnkFile.Delete()	
+            try
+            {
+                $lnkFile.Delete()
+                "SSP Shortcut Removed: $lnkFile"
+            }
+            catch
+            {
+                Write-Warning "Delete FAILED for SSP Shortcut: $lnkFile"
+                Write-Warning $_.Exception.Message
+            }
         }
     }
 }
