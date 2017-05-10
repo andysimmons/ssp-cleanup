@@ -54,6 +54,8 @@ param
     $LogFile = 'C:\Logs\CitrixSSPCleanup.log'
 )
 
+$startTime = [DateTime]::Now
+
 # This is a login script, we'll be explicit with modules to keep it snappy.
 $PSModuleAutoLoadingPreference = 'None'
 
@@ -66,10 +68,18 @@ $scriptModules = @(
 $scriptModules | Import-Module
 
 # Try the cool/newer Start-Transcript if we can
-try   { Start-Transcript -IncludeInvocationHeader $LogFile }
+try   
+{ 
+    Start-Transcript -IncludeInvocationHeader $LogFile
+    $isTranscribing = $true
+}
 catch 
 { 
-    try   { Start-Transcript $LogFile }
+    try   
+    { 
+        Start-Transcript $LogFile
+        $isTranscribing = $true 
+    }
     catch 
     { 
         Write-Warning "Couldn't write to log file '${LogFile}'. Continuing without logging."
@@ -123,3 +133,8 @@ foreach ($lnkFile in $lnkFiles)
         }
     }
 }
+
+$elapsed = [int]([DateTime]::Now - $startTime).TotalMilliseconds
+"Execution finished in $elapsed ms."
+
+if ($isTranscribing) { Stop-Transcript }
