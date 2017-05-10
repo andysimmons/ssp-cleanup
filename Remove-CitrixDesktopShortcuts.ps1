@@ -2,7 +2,7 @@
 .NOTES
     Name:    Remove-CitrixDesktopShortcuts.ps1
     Author:  Andy Simmons
-    Version: 1.0.2
+    Version: 1.0.3
     URL:     https://github.com/andysimmons/ssp-cleanup
     
 .SYNOPSIS
@@ -84,6 +84,7 @@ catch
     { 
         Write-Warning "Couldn't write to log file '${LogFile}'. Continuing without logging."
         Write-Warning $_.Exception.Message
+        $isTranscribing = $false
     }
 }
 
