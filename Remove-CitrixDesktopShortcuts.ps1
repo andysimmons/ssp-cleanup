@@ -28,6 +28,10 @@
     One or more directories to be searched (non-recursively) and purged of 
     SSP shortcuts.
 
+.PARAMETER SkipRefresh
+    Prevents the script from polling via the Self-Service Plugin after
+    execution (which could re-create Citrix application shortcuts).
+
 .PARAMETER LogFile
     Log file location.
     
@@ -59,7 +63,10 @@ param
     ),
 
     [IO.FileInfo]
-    $LogFile = 'C:\Logs\CitrixSSPCleanup.log'
+    $LogFile = 'C:\Logs\CitrixSSPCleanup.log',
+
+    [switch]
+    $SkipRefresh
 )
 
 $startTime = [DateTime]::Now
@@ -141,31 +148,33 @@ foreach ($lnkFile in $lnkFiles) {
     }
 }
 
-# If the self-service plugin is currently running, invoke a poll to refresh
-# Citrix apps and create shortcuts appropriately
-$sspProcess = Get-Process -ProcessName 'SelfServicePlugin' | Select-Object -First 1
-if ($sspProcess) {
-    Write-Verbose "Refreshing Citrix application details, and recreating shortcuts where appropriate."
+if (-not $SkipRefresh) {
+    # If the self-service plugin is currently running, invoke a poll to refresh
+    # Citrix apps and create shortcuts appropriately
+    $sspProcess = Get-Process -ProcessName 'SelfServicePlugin' | Select-Object -First 1
+    if ($sspProcess) {
+        Write-Verbose "Refreshing Citrix application details, and recreating shortcuts where appropriate."
     
-    $sspDir = ([IO.FileInfo] $sspProcess.Path).Directory
-    $ssExe = [IO.FileInfo] "$sspDir\SelfService.exe"
+        $sspDir = ([IO.FileInfo] $sspProcess.Path).Directory
+        $ssExe = [IO.FileInfo] "$sspDir\SelfService.exe"
 
-    if ($ssExe.Exists) {
-        try {
-            Invoke-Expression -Command "& '$ssExe' -poll" -ErrorAction 'Stop'
-            Write-Verbose "Citrix apps/shortcuts refresh invoked successfully. Shortcuts should reappear within a few seconds."
+        if ($ssExe.Exists) {
+            try {
+                Invoke-Expression -Command "& '$ssExe' -poll" -ErrorAction 'Stop'
+                Write-Verbose "Citrix apps/shortcuts refresh invoked successfully. Shortcuts should reappear within a few seconds."
+            }
+            catch {
+                Write-Warning "Error refreshing Citrix shortcuts!"
+                Write-Warning $_.Exception.Message
+            }
         }
-        catch {
+        else {
+            Write-Warning "SelfService.exe not found in '$sspDir'. Citrix Receiver/Workspace Install may be corrupted."
             Write-Warning "Error refreshing Citrix shortcuts!"
-            Write-Warning $_.Exception.Message
         }
     }
-    else {
-        Write-Warning "SelfService.exe not found in '$sspDir'. Citrix Receiver/Workspace Install may be corrupted."
-        Write-Warning "Error refreshing Citrix shortcuts!"
-    }
+    else { Write-Verbose "Self-Service Plugin isn't currently running, skipping Citrix shortcut refresh." }
 }
-else { Write-Verbose "Self-Service Plugin isn't currently running, skipping Citrix shortcut refresh." }
 
 $elapsed = [int]([DateTime]::Now - $startTime).TotalMilliseconds
 "Execution finished in $elapsed ms."
