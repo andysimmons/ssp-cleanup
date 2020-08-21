@@ -2,7 +2,7 @@
 .NOTES
     Name:    Remove-CitrixDesktopShortcuts.ps1
     Author:  Andy Simmons
-    Version: 1.0.3
+    Version: 1.0.4
     URL:     https://github.com/andysimmons/ssp-cleanup
     
 .SYNOPSIS
@@ -25,7 +25,8 @@
     by the Citrix Self-Service Plugin.
 
 .PARAMETER ShortcutPath
-    Directory to be searched (non-recursively) and purged of SSP shortcuts.
+    One or more directories to be searched (non-recursively) and purged of 
+    SSP shortcuts.
 
 .PARAMETER LogFile
     Log file location.
@@ -33,7 +34,7 @@
 .EXAMPLE
     Remove-CitrixDesktopShortcuts.ps1
 
-    Deletes any .lnk files in the user's desktop directory that were generated
+    Deletes any .lnk files in the specified directories that were generated
     by the Citrix SSP plugin.
 
 .EXAMPLE
@@ -47,8 +48,15 @@ param
     [regex]
     $StupidTargetPattern = 'Citrix.*ICA.*SelfServicePlugin',
 
-    [IO.DirectoryInfo]
-    $ShortcutPath = [Environment]::GetFolderPath('DesktopDirectory'),
+    [IO.DirectoryInfo[]]
+    #$ShortcutPath = [Environment]::GetFolderPath('DesktopDirectory'),
+    $ShortcutPath = @(
+        "F:\Desktop"
+        "C:\Users\${env:USERNAME}\Desktop"
+        "C:\Users\${env:USERNAME}\OneDrive - stlukes\Desktop"
+        "C:\Users\${env:USERNAME}\AppData\Roaming\Microsoft\Windows\Start Menu\Programs"
+        "C:\Users\${env:USERNAME}\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Epic"
+    ),
 
     [IO.FileInfo]
     $LogFile = 'C:\Logs\CitrixSSPCleanup.log'
@@ -68,33 +76,38 @@ $scriptModules = @(
 $scriptModules | Import-Module
 
 # Try the cool/newer Start-Transcript if we can
-try   
-{ 
+try { 
     Start-Transcript -IncludeInvocationHeader $LogFile
     $isTranscribing = $true
 }
-catch 
-{ 
-    try   
-    { 
+catch { 
+    try { 
         Start-Transcript $LogFile
         $isTranscribing = $true 
     }
-    catch 
-    { 
+    catch { 
         Write-Warning "Couldn't write to log file '${LogFile}'. Continuing without logging."
         Write-Warning $_.Exception.Message
         $isTranscribing = $false
     }
 }
 
-if (-not $ShortcutPath.Exists)
-{
-    Write-Error -Message "No such directory: '${ShortcutPath}'" -Category ObjectNotFound
+# make sure at least one of the the shortcut directories exist
+$ShortcutPath = foreach ($sp in $ShortcutPath) {
+    if (-not $sp.Exists) {
+        Write-Warning "No such directory: '$sp'. Skipping."
+    }
+    else { $sp }
+}
+
+if (-not $ShortcutPath) {
+    Write-Error -Message "None of the provided shortcut directories exist. Nothing to do." -Category ObjectNotFound
     exit 1
 }
 
-[IO.FileInfo[]]$lnkFiles = Get-ChildItem -Path $ShortcutPath -Filter '*.lnk' -ErrorAction Stop
+[IO.FileInfo[]] $lnkFiles = $ShortcutPath | ForEach-Object {
+    Get-ChildItem -Path $_ -Filter '*.lnk' -ErrorAction Stop
+}
 Write-Verbose "Found $($lnkFiles.Length) '.lnk' files in '${ShortcutPath}'"
 
 if (-not $lnkFiles) { exit }
@@ -102,32 +115,25 @@ if (-not $lnkFiles) { exit }
 # Spawn a WSH shell (.Net doesn't have a native shortcut handler).
 $wshShell = New-Object -ComObject WScript.Shell 
 
-foreach ($lnkFile in $lnkFiles)
-{
-    try 
-    {
-        # Create a shortcut (COM object) from each file. 
+foreach ($lnkFile in $lnkFiles) {
+    try {
+        # instantiate a shortcut (COM object) from each file. 
         $shortcut = $wshShell.CreateShortcut($lnkFile.FullName) 
     }
-    catch
-    {
+    catch {
         Write-Error -Message $_.Exception.Message -Category $_.CategoryInfo
         $shortcut = $null
         continue
     }
 
-    if ($shortcut.TargetPath -match $StupidTargetPattern)
-    {
+    if ($shortcut.TargetPath -match $StupidTargetPattern) {
         Write-Verbose "SSP Shortcut: '$($lnkFile.BaseName)' -> '$($shortcut.TargetPath)'"
-        if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete'))
-        {
-            try
-            {
+        if ($PSCmdlet.ShouldProcess($lnkFile, 'Delete')) {
+            try {
                 $lnkFile.Delete()
                 "SSP Shortcut Removed: $lnkFile"
             }
-            catch
-            {
+            catch {
                 Write-Warning "Delete FAILED for SSP Shortcut: $lnkFile"
                 Write-Warning $_.Exception.Message
             }
